@@ -1,15 +1,28 @@
-import { CHANGE_LANG, SET_LANGS } from './LanguageProvider.constants';
+import {
+  CHANGE_LANG,
+  SET_LANGS,
+  SET_DOWNLOADING_LANG
+} from './LanguageProvider.constants';
 
-export function changeLang(lang) {
+export function changeLang(lang, isNewVoiceAvailable = false) {
   return {
     type: CHANGE_LANG,
-    lang
+    lang,
+    isNewVoiceAvailable
   };
 }
 
-export function setLangs(langs) {
+export function setLangs(langs, localLangs) {
   return {
     type: SET_LANGS,
-    langs
+    langs,
+    localLangs
+  };
+}
+
+export function setDownloadingLang(downloadingLangData) {
+  return {
+    type: SET_DOWNLOADING_LANG,
+    downloadingLangData
   };
 }

@@ -2,53 +2,35 @@
   position: relative;
   display: flex;
   align-items: center;
-  width: 96px;
-  height: 96px;
-  background: #ddd;
+  justify-content: center;
+  height: 48px;
+  line-height: 48px;
   cursor: pointer;
-}
-
-@media (min-width: 600px) {
-  .InputImage {
-    width: 144px;
-    height: 144px;
-  }
-}
-
-.InputImage > svg {
-  width: 32px;
-  height: 32px;
-  padding: 4px;
-  margin: 12px;
-  border-radius: 50%;
-  position: absolute;
-  bottom: 0;
-  right: 0;
-  color: #222;
-  background: #fff;
-  pointer-events: none;
-}
-
-.InputImage__label {
-  position: absolute;
-  top: 0;
-  left: 0;
-  width: 100%;
-  height: 100%;
-  text-align: center;
-  cursor: pointer;
-}
-
-.InputImage.is-uploaded .InputImage__label {
-  opacity: 0;
 }
 
 .InputImage__input {
   display: none;
 }
 
-.InputImage__img {
-  object-fit: contain;
-  width: 100%;
+.InputImage > svg {
+  color: inherit;
+}
+
+.InputImage__label {
+  position: relative;
   height: 100%;
+  padding-left: 12px;
+  padding-right: 12px;
+  font-size: 0.875rem;
+  cursor: pointer;
+  overflow: visible;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.InputImage__button {
+  width: 100%;
+}
+.InputImage__buttonContainer {
+  margin-top: 6px;
 }

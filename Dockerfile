@@ -1,52 +1,14 @@
-FROM node:8-alpine AS base
+# Stage 1 - the build process
+FROM node:22.23.2 AS build-deps
+WORKDIR /usr/src/app
+COPY package.json package-lock.json .npmrc ./
+RUN HUSKY=0 npm ci
+COPY . ./
+RUN NODE_OPTIONS="--max-old-space-size=4192" npm run build
 
-# Make a directory for our source and build artifacts
-RUN mkdir -p /home/cboard/build
-WORKDIR /home/cboard
-
-# Copy only the package.json file so we can install and cache dependencies
-COPY package.json /home/cboard
-
-
-
-# --- Create "dependencies" intermediate stage
-
-FROM base AS dependencies
-RUN npm set progress=false
-
-# Install only modules listed in "dependencies" in package.json
-RUN npm install --only=production
-
-# Cache the runtime dependencies for later stage
-RUN cp -R node_modules prod_node_modules
-
-# Install all runtime and dev dependencies for building the code
-RUN npm install
-
-# --- End "dependencies" stage
-
-
-
-# --- Create the "build" intermediate stage
-
-FROM dependencies AS build
-COPY . .
-RUN npm run build
-
-# --- End "build" stage
-
-
-
-# --- Create the "release" image without devDependencies
-
-FROM base AS release
-COPY --from=dependencies /home/cboard/prod_node_modules ./node_modules
-COPY --from=build /home/cboard/build ./build
-
-RUN npm install -g serve
-
-EXPOSE 5000
-
-CMD ["serve", "-s", "build"]
-
-# --- End "release" stage
+# Stage 2 - the production environment
+FROM nginx:stable-alpine
+COPY ./rootfs/ /
+COPY --from=build-deps /usr/src/app/build /usr/share/nginx/html
+EXPOSE 80
+CMD ["nginx", "-g", "daemon off;"]

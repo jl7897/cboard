@@ -3,38 +3,89 @@ import PropTypes from 'prop-types';
 import { connect } from 'react-redux';
 
 import tts from './tts';
-import { getVoices } from './SpeechProvider.actions';
+import {
+  getVoices,
+  getTtsEngines,
+  getTtsDefaultEngine,
+  updateLangSpeechStatus,
+  setTtsEngine,
+  setCurrentVoiceSource
+} from './SpeechProvider.actions';
+import { isAndroid } from '../../cordova-util';
 
 export class SpeechProvider extends Component {
   static propTypes = {
-    voices: PropTypes.array.isRequired,
-    langs: PropTypes.array.isRequired,
-    children: PropTypes.node.isRequired
+    children: PropTypes.node.isRequired,
+    ttsEngine: PropTypes.object,
+    setTtsEngine: PropTypes.func
   };
 
-  componentWillMount() {
-    if (tts.isSupported()) {
-      this.props.getVoices();
+  async componentDidMount() {
+    const {
+      getVoices,
+      updateLangSpeechStatus,
+      getTtsEngines,
+      getTtsDefaultEngine,
+      ttsEngine,
+      setTtsEngine,
+      setCurrentVoiceSource,
+      elevenLabsApiKey
+    } = this.props;
+
+    if (elevenLabsApiKey) {
+      tts.initElevenLabsInstance(elevenLabsApiKey);
     }
+
+    if (tts.isSupported()) {
+      if (isAndroid()) {
+        getTtsEngines();
+        getTtsDefaultEngine();
+
+        const defaultEngine = tts.getTtsDefaultEngine();
+
+        if (
+          ttsEngine &&
+          ttsEngine.name &&
+          defaultEngine &&
+          defaultEngine.name &&
+          ttsEngine.name !== defaultEngine.name
+        ) {
+          try {
+            await setTtsEngine(ttsEngine.name);
+          } catch (err) {
+            console.error('Error setting TTS engine:', err.message);
+          }
+        }
+      }
+      try {
+        const voices = await getVoices();
+        await updateLangSpeechStatus(voices);
+      } catch (err) {
+        console.error('Error getting voices:', err.message);
+      }
+    }
+    setCurrentVoiceSource();
   }
 
   render() {
-    const { voices, children } = this.props;
-    if (!voices.length) {
-      return null;
-    }
+    const { children } = this.props;
 
     return React.Children.only(children);
   }
 }
 
-const mapStateToProps = state => ({
-  voices: state.speech.voices,
-  langs: state.speech.langs
+const mapStateToProps = (state) => ({
+  ttsEngine: state.speech.ttsEngine,
+  elevenLabsApiKey: state.speech.elevenLabsApiKey
 });
 
 const mapDispatchToProps = {
-  getVoices
+  getVoices,
+  getTtsEngines,
+  getTtsDefaultEngine,
+  setTtsEngine,
+  updateLangSpeechStatus,
+  setCurrentVoiceSource
 };
 
 export default connect(mapStateToProps, mapDispatchToProps)(SpeechProvider);

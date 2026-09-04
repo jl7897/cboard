@@ -1,23 +1,19 @@
 // Jest Snapshot v1, https://goo.gl/fbAQLP
 
 exports[`IconButton tests default renderer 1`] = `
-<Unknown>
-  <WithStyles(Tooltip)
+<React.Fragment>
+  <WithStyles(ForwardRef(Tooltip))
     placement="bottom"
     title="Go back"
   >
-    <WithStyles(IconButton)
+    <WithStyles(ForwardRef(IconButton))
       aria-label="Go back"
       color="inherit"
-      component={undefined}
-      disabled={undefined}
-      onClick={undefined}
-      to={undefined}
     >
       <div>
         icon
       </div>
-    </WithStyles(IconButton)>
-  </WithStyles(Tooltip)>
-</Unknown>
+    </WithStyles(ForwardRef(IconButton))>
+  </WithStyles(ForwardRef(Tooltip))>
+</React.Fragment>
 `;

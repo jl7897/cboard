@@ -1,342 +1,419 @@
 import React, { Component } from 'react';
 import PropTypes from 'prop-types';
-import { injectIntl, intlShape } from 'react-intl';
-import keycode from 'keycode';
 import classNames from 'classnames';
-import CheckCircleIcon from '@material-ui/icons/CheckCircle';
+import { Scanner, Scannable } from 'react-scannable';
+import TextField from '@material-ui/core/TextField';
+import Button from '@material-ui/core/Button';
+import Dialog from '@material-ui/core/Dialog';
+import DialogActions from '@material-ui/core/DialogActions';
+import DialogContent from '@material-ui/core/DialogContent';
+import DialogTitle from '@material-ui/core/DialogTitle';
+import Alert from '@material-ui/lab/Alert';
 
-import BoardTileEditor from './BoardTileEditor';
-import Grid from '../Grid';
-import SymbolOutput from './SymbolOutput';
+import OutputContainer from './Output';
 import Navbar from './Navbar';
 import EditToolbar from './EditToolbar';
-import BoardTile from './BoardTile';
+import CommunicatorToolbar from '../Communicator/CommunicatorToolbar';
+import BoardGrid from './BoardGrid/BoardGrid.component';
+
+import { Link } from 'react-router-dom';
+
+import messages from './Board.messages';
 
 import './Board.css';
+import BoardTour from './BoardTour/BoardTour';
+import ImprovePhraseOutput from './ImprovePhraseOutput';
+import { resolveBoardName } from '../../helpers';
+import { ROW_SCAN_PASSES_BEFORE_RETURN } from './Board.constants';
 
 export class Board extends Component {
   static propTypes = {
+    board: PropTypes.shape({
+      id: PropTypes.string,
+      name: PropTypes.string,
+      tiles: PropTypes.arrayOf(PropTypes.object)
+    }),
     /**
      * @ignore
      */
     className: PropTypes.string,
     /**
-     * @ignore
+     *
      */
-    intl: intlShape.isRequired,
-    /**
-     * Board to display
-     */
-    board: PropTypes.shape({
-      id: PropTypes.string,
-      tiles: PropTypes.arrayOf(PropTypes.object)
-    }),
-    /**
-     * If true, navigation of boards will be disabled
-     */
-    disableNav: PropTypes.bool,
-    /**
-     * Callback fired when a board tile is clicked
-     */
-    onBoardTileClick: PropTypes.func,
-    /**
-     * Callback fired when a board is added
-     */
-    onAddBoard: PropTypes.func,
-    /**
-     * Callback fired when a board tile is added
-     */
-    onAddBoardTile: PropTypes.func,
-    /**
-     * Callback fired when board tiles were edited
-     */
-    onEditBoardTiles: PropTypes.func,
+    disableBackButton: PropTypes.bool,
     /**
      * Callback fired when board tiles are deleted
      */
-    onDeleteBoardTiles: PropTypes.func,
+    onDeleteClick: PropTypes.func,
     /**
-     * Callback fired when requesting to load a board
+     * Callback fired when a board tile is focused
      */
-    onRequestLoadBoard: PropTypes.func,
+    onFocusTile: PropTypes.func,
+    /**
+     * Callback fired when a board tile is clicked
+     */
+    onTileClick: PropTypes.func,
+    onSaveBoardClick: PropTypes.func,
+    editBoardTitle: PropTypes.func,
+    /**
+     *
+     */
+    onLockNotify: PropTypes.func,
+    onScannerActive: PropTypes.func,
     /**
      * Callback fired when requesting to load previous board
      */
     onRequestPreviousBoard: PropTypes.func,
     /**
-     * Callback fired when a board tile is focused
+     * Callback fired when requesting to travel and load root board
      */
-    onFocusBoardTile: PropTypes.func,
+    onRequestToRootBoard: PropTypes.func,
     /**
-     * Callback fired when a board output changes
+     *
      */
-    onOutputChange: PropTypes.func,
-    /**
-     * Callback fired when a output scroll container is clicked
-     */
-    onOutputClick: PropTypes.func
+    selectedTileIds: PropTypes.arrayOf(PropTypes.string),
+    displaySettings: PropTypes.object,
+    navigationSettings: PropTypes.object,
+    scannerSettings: PropTypes.object,
+    userData: PropTypes.object,
+    deactivateScanner: PropTypes.func,
+    navHistory: PropTypes.arrayOf(PropTypes.string),
+    emptyVoiceAlert: PropTypes.bool,
+    offlineVoiceAlert: PropTypes.bool,
+    onBoardTypeChange: PropTypes.func,
+    isFixedBoard: PropTypes.bool,
+    onAddRemoveColumn: PropTypes.func,
+    onAddRemoveRow: PropTypes.func,
+    onLayoutChange: PropTypes.func,
+    isRootBoardTourEnabled: PropTypes.bool,
+    isUnlockedTourEnabled: PropTypes.bool,
+    disableTour: PropTypes.func,
+    copiedTiles: PropTypes.arrayOf(PropTypes.object),
+    setIsScroll: PropTypes.func,
+    isScroll: PropTypes.bool,
+    totalRows: PropTypes.number
   };
 
-  state = {
-    selectedTiles: [],
-    isSelecting: false,
-    isLocked: true,
-    boardTileEditorOpen: false
+  static defaultProps = {
+    displaySettings: {
+      uiSize: 'Standard',
+      labelPosition: 'Below',
+      shareShowActive: false,
+      hideOutputActive: false
+    },
+    navigationSettings: {},
+    scannerSettings: { active: false, delay: 2000, strategy: 'automatic' },
+    selectedTileIds: [],
+    emptyVoiceAlert: false,
+    userData: {}
   };
 
-  toggleSelectMode() {
-    this.setState(prevState => ({
-      isSelecting: !prevState.isSelecting,
-      selectedTiles: []
-    }));
+  constructor(props) {
+    super(props);
+
+    this.state = {
+      openTitleDialog: false,
+      titleDialogValue: props.board && props.board.name ? props.board.name : ''
+    };
+
+    this.boardContainerRef = React.createRef();
+    this.fixedBoardContainerRef = React.createRef();
   }
 
-  selectBoardTile(tileId) {
-    this.setState({
-      selectedTiles: [...this.state.selectedTiles, tileId]
-    });
-  }
+  // Tracks tiles focused during the current row descent to detect a full pass.
+  scanTileCycle = null;
 
-  deselectBoardTile(tileId) {
-    const [...selectedTiles] = this.state.selectedTiles;
-    const tileIndex = selectedTiles.indexOf(tileId);
-    selectedTiles.splice(tileIndex, 1);
-    this.setState({ selectedTiles });
-  }
+  // Row-column scanning: when a row's tiles are scanned one full pass without a
+  // selection, return to row-by-row scanning instead of looping the row forever.
+  handleScannerFocus = (element, scanner) => {
+    const { selectedPath, focusedId, elementsToIterate } = scanner.state;
+    const node = elementsToIterate[focusedId];
+    const isLeafLevel = node && !node.children;
 
-  toggleBoardTileSelect(tileId) {
-    if (this.state.selectedTiles.includes(tileId)) {
-      this.deselectBoardTile(tileId);
-    } else {
-      this.selectBoardTile(tileId);
-    }
-  }
-
-  handleBoardTileClick = tile => {
-    const { onBoardTileClick } = this.props;
-
-    if (this.state.isSelecting) {
-      this.toggleBoardTileSelect(tile.id);
+    // Only applies while iterating a row's tiles (container -> row -> tiles).
+    if (selectedPath.length < 2 || !isLeafLevel) {
+      this.scanTileCycle = null;
       return;
     }
 
-    if (tile.loadBoard) {
-      this.boardTiles.scrollTop = 0;
+    const pathKey = selectedPath.join('/');
+    if (!this.scanTileCycle || this.scanTileCycle.pathKey !== pathKey) {
+      this.scanTileCycle = { pathKey, seen: new Set(), passes: 0 };
     }
-    onBoardTileClick(tile);
-  };
 
-  handleBoardTileFocus = tileId => {
-    const { onFocusBoardTile, board } = this.props;
-    onFocusBoardTile(tileId, board.id);
-  };
-
-  handleBackClick = () => {
-    const { onRequestPreviousBoard } = this.props;
-    onRequestPreviousBoard();
-  };
-
-  handleSelectClick = () => {
-    this.toggleSelectMode();
-  };
-
-  handleAddClick = () => {
-    this.setState({
-      boardTileEditorOpen: true,
-      selectedTiles: [],
-      isSelecting: false
-    });
-  };
-
-  handleEditClick = () => {
-    this.setState({ boardTileEditorOpen: true });
-  };
-
-  handleDeleteClick = () => {
-    const { onDeleteBoardTiles, board } = this.props;
-    this.setState({ selectedTiles: [] });
-    onDeleteBoardTiles(this.state.selectedTiles, board.id);
-  };
-
-  handleBoardTileEditorCancel = () => {
-    this.setState({ boardTileEditorOpen: false });
-  };
-
-  handleEditBoardTileEditorSubmit = tiles => {
-    const { board, onEditBoardTiles } = this.props;
-    onEditBoardTiles(tiles, board.id);
-    this.toggleSelectMode();
-  };
-
-  handleAddBoardTileEditorSubmit = tile => {
-    const { onAddBoardTile, onAddBoard, board } = this.props;
-
-    if (tile.loadBoard) {
-      const {
-        loadBoard: boardId,
-        label: boardName,
-        labelKey: boardNameKey
-      } = tile;
-
-      onAddBoard(boardId, boardName, boardNameKey);
+    const cycle = this.scanTileCycle;
+    if (cycle.seen.has(focusedId)) {
+      cycle.passes += 1;
+      if (cycle.passes >= ROW_SCAN_PASSES_BEFORE_RETURN) {
+        this.scanTileCycle = null;
+        scanner.setSelectedPath(selectedPath.slice(0, -1));
+        return;
+      }
+      cycle.seen = new Set();
     }
-    onAddBoardTile(tile, board.id);
+
+    cycle.seen.add(focusedId);
   };
 
-  handleLockClick = () => {
-    this.setState((state, props) => ({
-      isLocked: !state.isLocked,
-      isSelecting: false,
-      selectedTiles: []
-    }));
-  };
-
-  handleLockNotify = message => {
-    const { onLockNotify } = this.props;
-    onLockNotify(message);
-  };
-
-  handleBoardKeyUp = event => {
-    if (event.keyCode === keycode('esc')) {
-      this.handleBackClick();
+  componentDidMount() {
+    if (this.props.scannerSettings.active) {
+      this.props.onScannerActive();
     }
-  };
-
-  handleOutputClick = () => {
-    const { intl, output, onOutputClick } = this.props;
-
-    const translatedOutput = output.map(value => {
-      const label = value.labelKey
-        ? intl.formatMessage({ id: value.labelKey })
-        : value.label;
-      return { ...value, label };
-    });
-    onOutputClick(translatedOutput);
-  };
-
-  generateBoardTiles(boardTiles, boardId) {
-    const {
-      intl,
-      board: { focusedBoardTileId }
-    } = this.props;
-
-    return Object.keys(boardTiles).map((id, index) => {
-      const tile = boardTiles[id];
-      const isSelected = this.state.selectedTiles.includes(tile.id);
-      const hasFocus = focusedBoardTileId
-        ? tile.id === focusedBoardTileId
-        : index === 0;
-
-      const label = tile.labelKey
-        ? intl.formatMessage({ id: tile.labelKey })
-        : tile.label;
-
-      return (
-        <div key={tile.id}>
-          <BoardTile
-            {...tile}
-            label={label}
-            hasFocus={hasFocus}
-            onClick={this.handleBoardTileClick}
-            onFocus={this.handleBoardTileFocus}
-          >
-            {isSelected && <CheckCircleIcon className="CheckCircleIcon" />}
-          </BoardTile>
-        </div>
-      );
-    });
   }
+
+  handleTileFocus = (tileId) => {
+    const { onFocusTile, board } = this.props;
+    onFocusTile(tileId, board.id);
+  };
+
+  handleBoardTitleClick = () => {
+    if (!this.props.userData.email) {
+      return false;
+    }
+    this.setState({
+      openTitleDialog: true,
+      titleDialogValue: this.props.board.name
+    });
+  };
+
+  handleBoardTitleChange = (event) => {
+    const { value: titleDialogValue } = event.target;
+    this.setState({ titleDialogValue });
+  };
+
+  handleBoardTitleSubmit = async () => {
+    if (this.state.titleDialogValue.length) {
+      try {
+        await this.props.editBoardTitle(this.state.titleDialogValue);
+      } catch (e) {}
+    }
+    this.handleBoardTitleClose();
+  };
+
+  handleBoardTitleClose = () => {
+    this.setState({
+      openTitleDialog: false,
+      titleDialogValue: this.props.board.name || this.props.board.id || ''
+    });
+  };
 
   render() {
     const {
-      intl,
-      dir,
-      disableBackButton,
       board,
-      output,
-      onOutputChange
+      intl,
+      userData,
+      disableBackButton,
+      isLocked,
+      isSaving,
+      isSelectAll,
+      isSelecting,
+      isFixedBoard,
+      onAddClick,
+      onDeleteClick,
+      onEditClick,
+      onSaveBoardClick,
+      onSelectAllToggle,
+      onSelectClick,
+      onLockClick,
+      onLockNotify,
+      onRequestPreviousBoard,
+      onRequestToRootBoard,
+      onBoardTypeChange,
+      selectedTileIds,
+      navigationSettings,
+      scannerSettings,
+      deactivateScanner,
+      publishBoard,
+      emptyVoiceAlert,
+      offlineVoiceAlert,
+      onAddRemoveRow,
+      onAddRemoveColumn,
+      onTileDrop,
+      onLayoutChange,
+      isRootBoardTourEnabled,
+      isUnlockedTourEnabled,
+      disableTour,
+      onCopyTiles,
+      onPasteTiles,
+      setIsScroll,
+      isScroll,
+      totalRows,
+      changeDefaultBoard,
+      improvedPhrase,
+      speak
     } = this.props;
 
-    const translatedOutput = output.map(value => {
-      const label = value.labelKey
-        ? intl.formatMessage({ id: value.labelKey })
-        : value.label;
-      return { ...value, label };
-    });
-
-    const boardName = board.nameKey
-      ? intl.formatMessage({ id: board.nameKey })
-      : board.name;
-
-    const boardTiles = this.generateBoardTiles(board.tiles, board.id);
+    const isLoggedIn = !!userData.email;
 
     return (
-      <div
-        className={classNames('Board', {
-          'is-selecting': this.state.isSelecting,
-          'is-locked': this.state.isLocked
-        })}
+      <Scanner
+        active={scannerSettings.active}
+        iterationInterval={scannerSettings.delay}
+        strategy={scannerSettings.strategy}
+        onDeactivation={deactivateScanner}
+        onFocus={this.handleScannerFocus}
       >
-        <SymbolOutput
-          className="Board__output"
-          dir={dir}
-          values={translatedOutput}
-          onChange={onOutputChange}
-          onClick={this.handleOutputClick}
-        />
-
-        <Navbar
-          className="Board__navbar"
-          title={boardName}
-          disabled={disableBackButton || this.state.isSelecting}
-          isLocked={this.state.isLocked}
-          onBackClick={this.handleBackClick}
-          onLockClick={this.handleLockClick}
-          onLockNotify={this.handleLockNotify}
-          onSettingsClick={this.handleSettingsClick}
-        />
-
-        <EditToolbar
-          className="Board__edit-toolbar"
-          isSelecting={this.state.isSelecting}
-          selectedItemsCount={this.state.selectedTiles.length}
-          onSelectClick={this.handleSelectClick}
-          onAddClick={this.handleAddClick}
-          onEditClick={this.handleEditClick}
-          onDeleteClick={this.handleDeleteClick}
-        />
-
         <div
-          className="Board__tiles"
-          onKeyUp={this.handleBoardKeyUp}
-          ref={ref => {
-            this.boardTiles = ref;
-          }}
+          className={classNames('Board', {
+            'is-locked': isLocked
+          })}
         >
-          <Grid
-            id={board.id}
-            edit={this.state.isSelecting}
-            onDrag={this.handleDrag}
-          >
-            {boardTiles}
-          </Grid>
-        </div>
+          <BoardTour
+            isLocked={isLocked}
+            isRootBoardTourEnabled={isRootBoardTourEnabled}
+            isUnlockedTourEnabled={isUnlockedTourEnabled}
+            disableTour={disableTour}
+            intl={intl}
+            onDefaultBoardOptionClick={changeDefaultBoard}
+          />
+          <Scannable>
+            <div
+              className={classNames('Board__output', {
+                hidden: this.props.displaySettings.hideOutputActive
+              })}
+            >
+              <OutputContainer />
+            </div>
+          </Scannable>
 
-        <BoardTileEditor
-          editingBoardTiles={this.state.selectedTiles.map(
-            selectedBoardTileId =>
-              board.tiles.filter(boardTile => {
-                return boardTile.id === selectedBoardTileId;
-              })[0]
+          <Navbar
+            className="Board__navbar"
+            disabled={disableBackButton || isSelecting || isSaving}
+            isLocked={isLocked}
+            isScannerActive={scannerSettings.active}
+            onBackClick={onRequestPreviousBoard}
+            onLockClick={onLockClick}
+            onDeactivateScannerClick={deactivateScanner}
+            onLockNotify={onLockNotify}
+            title={resolveBoardName(board, intl)}
+            board={board}
+            userData={userData}
+            publishBoard={publishBoard}
+            showNotification={this.props.showNotification}
+          />
+
+          {emptyVoiceAlert && (
+            <Alert variant="filled" severity="error">
+              {intl.formatMessage(messages.emptyVoiceAlert)}
+            </Alert>
           )}
-          open={this.state.boardTileEditorOpen}
-          onClose={this.handleBoardTileEditorCancel}
-          onEditSubmit={this.handleEditBoardTileEditorSubmit}
-          onAddSubmit={this.handleAddBoardTileEditorSubmit}
-        />
-      </div>
+          {offlineVoiceAlert && (
+            <Alert
+              variant="filled"
+              severity="warning"
+              action={
+                <Button
+                  size="small"
+                  variant="outlined"
+                  style={{ color: 'white', borderColor: 'white' }}
+                  component={Link}
+                  to="/settings/speech"
+                >
+                  {intl.formatMessage(messages.offlineChangeVoice)}
+                </Button>
+              }
+            >
+              {intl.formatMessage(messages.offlineVoiceAlert)}
+            </Alert>
+          )}
+
+          <CommunicatorToolbar
+            className="Board__communicator-toolbar"
+            isSelecting={isSelecting || isSaving}
+          />
+
+          <EditToolbar
+            board={board}
+            onBoardTitleClick={this.handleBoardTitleClick}
+            className="Board__edit-toolbar"
+            isSelectAll={isSelectAll}
+            isSelecting={isSelecting}
+            isSaving={isSaving}
+            isLoggedIn={isLoggedIn}
+            onAddClick={onAddClick}
+            isFixedBoard={isFixedBoard}
+            onDeleteClick={onDeleteClick}
+            onEditClick={onEditClick}
+            onSaveBoardClick={onSaveBoardClick}
+            onSelectAllToggle={onSelectAllToggle}
+            onSelectClick={onSelectClick}
+            selectedItemsCount={selectedTileIds.length}
+            onBoardTypeChange={onBoardTypeChange}
+            onCopyTiles={onCopyTiles}
+            onPasteTiles={onPasteTiles}
+            copiedTiles={this.props.copiedTiles}
+          />
+
+          <BoardGrid
+            board={board}
+            displaySettings={this.props.displaySettings}
+            navigationSettings={navigationSettings}
+            scannerSettings={scannerSettings}
+            isSelecting={isSelecting}
+            isSaving={isSaving}
+            isFixedBoard={isFixedBoard}
+            selectedTileIds={selectedTileIds}
+            intl={intl}
+            onTileClick={this.props.onTileClick}
+            onFocusTile={this.handleTileFocus}
+            onTileDrop={onTileDrop}
+            onLayoutChange={onLayoutChange}
+            onAddRemoveRow={onAddRemoveRow}
+            onAddRemoveColumn={onAddRemoveColumn}
+            onRequestPreviousBoard={onRequestPreviousBoard}
+            onRequestToRootBoard={onRequestToRootBoard}
+            setIsScroll={setIsScroll}
+            isScroll={isScroll}
+            totalRows={totalRows}
+            boardContainerRef={this.boardContainerRef}
+            fixedBoardContainerRef={this.fixedBoardContainerRef}
+            navHistory={this.props.navHistory}
+          />
+
+          {navigationSettings.improvePhraseActive && (
+            <ImprovePhraseOutput
+              improvedPhrase={improvedPhrase}
+              speak={speak}
+            />
+          )}
+          <Dialog
+            open={this.state.openTitleDialog}
+            aria-labelledby="board-dialog-title"
+            onSubmit={this.handleBoardTitleSubmit}
+            onClose={this.handleBoardTitleClose}
+          >
+            <DialogTitle id="board-dialog-title">
+              {intl.formatMessage(messages.editTitle)}
+            </DialogTitle>
+            <DialogContent>
+              <TextField
+                autoFocus
+                margin="dense"
+                id="board title"
+                label={intl.formatMessage(messages.boardTitle)}
+                type="text"
+                fullWidth
+                value={this.state.titleDialogValue}
+                onChange={this.handleBoardTitleChange}
+              />
+            </DialogContent>
+            <DialogActions>
+              <Button onClick={this.handleBoardTitleClose} color="primary">
+                {intl.formatMessage(messages.boardEditTitleCancel)}
+              </Button>
+              <Button
+                onClick={this.handleBoardTitleSubmit}
+                color="primary"
+                variant="contained"
+              >
+                {intl.formatMessage(messages.boardEditTitleAccept)}
+              </Button>
+            </DialogActions>
+          </Dialog>
+        </div>
+      </Scanner>
     );
   }
 }
 
-export default injectIntl(Board);
+export default Board;

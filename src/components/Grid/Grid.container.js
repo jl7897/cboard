@@ -1,23 +1,13 @@
 import React, { PureComponent } from 'react';
 import PropTypes from 'prop-types';
-import { connect } from 'react-redux';
 import classNames from 'classnames';
 import sizeMe from 'react-sizeme';
 import { Responsive as ResponsiveReactGridLayout } from 'react-grid-layout';
 import 'react-grid-layout/css/styles.css';
-import 'react-resizable/css/styles.css';
 
-import { changeLayouts } from './Grid.actions';
 import './Grid.css';
-
-const layoutShape = PropTypes.arrayOf(
-  PropTypes.shape({
-    x: PropTypes.number,
-    y: PropTypes.number,
-    w: PropTypes.number,
-    h: PropTypes.number
-  })
-);
+import { GRID_BREAKPOINTS } from './Grid.constants';
+import { computeScrollState } from '../Board/Board.utils';
 
 const colsRowsShape = PropTypes.shape({
   lg: PropTypes.number,
@@ -32,22 +22,16 @@ export class GridContainer extends PureComponent {
     cols: colsRowsShape,
     rows: colsRowsShape,
     breakpoints: colsRowsShape,
-    layouts: PropTypes.shape({
-      lg: layoutShape,
-      md: layoutShape,
-      sm: layoutShape,
-      xs: layoutShape,
-      xxs: layoutShape
-    }),
     gap: PropTypes.number,
     children: PropTypes.node,
-    edit: PropTypes.bool
+    edit: PropTypes.bool,
+    onLayoutChange: PropTypes.func
   };
 
   static defaultProps = {
     cols: { lg: 6, md: 6, sm: 5, xs: 4, xxs: 3 },
     rows: { lg: 3, md: 3, sm: 3, xs: 3, xxs: 3 },
-    breakpoints: { lg: 1200, md: 996, sm: 768, xs: 567, xxs: 0 },
+    breakpoints: GRID_BREAKPOINTS,
     gap: 10,
     edit: false
   };
@@ -57,6 +41,40 @@ export class GridContainer extends PureComponent {
   };
 
   grid = null;
+
+  componentDidMount() {
+    if (this.props.isBigScrollBtns) this.configBigScrollBtns();
+  }
+
+  configBigScrollBtns() {
+    const { breakpoints, size, cols, setIsScroll, rows } = this.props;
+    const breakPoint = this.getBreakpointFromWidth(breakpoints, size.width);
+    const currentLayout = this.generateLayout(cols[breakPoint]);
+
+    const { isScroll, totalRows } = computeScrollState(
+      currentLayout.length,
+      cols[breakPoint],
+      rows[breakPoint]
+    );
+    setIsScroll(isScroll, totalRows);
+  }
+
+  getBreakpointFromWidth(breakpoints, width) {
+    const sortBreakpoints = (breakpoints) => {
+      let keys = Object.keys(breakpoints);
+      return keys.sort(function (a, b) {
+        return breakpoints[a] - breakpoints[b];
+      });
+    };
+
+    const sorted = sortBreakpoints(breakpoints);
+    let matching = sorted[0];
+    for (let i = 1, len = sorted.length; i < len; i++) {
+      let breakpointName = sorted[i];
+      if (width > breakpoints[breakpointName]) matching = breakpointName;
+    }
+    return matching;
+  }
 
   calcRowHeight(height) {
     // todo: rewrite this with variable caching
@@ -99,17 +117,12 @@ export class GridContainer extends PureComponent {
   generateLayouts() {
     const { breakpoints, cols } = this.props;
     const layouts = {};
-
-    Object.keys(breakpoints).forEach(bp => {
+    Object.keys(breakpoints).forEach((bp) => {
       layouts[bp] = this.generateLayout(cols[bp]);
     });
+
     return layouts;
   }
-
-  handleLayoutChange = (currentLayout, layouts) => {
-    const { onLayoutChange, id } = this.props;
-    onLayoutChange({ id, layouts });
-  };
 
   handleDragStart = (layout, oldItem, newItem, placeholder, event, element) => {
     this.setState({ dragging: true });
@@ -120,30 +133,21 @@ export class GridContainer extends PureComponent {
   };
 
   render() {
-    const {
-      id,
-      size,
-      cols,
-      gap,
-      edit,
-      breakpoints,
-      layouts,
-      children
-    } = this.props;
-
+    const { size, cols, gap, edit, breakpoints, children, onLayoutChange } =
+      this.props;
     return (
       <div className={classNames('Grid', { dragging: this.state.dragging })}>
         <ResponsiveReactGridLayout
           breakpoints={breakpoints}
           cols={cols}
-          layouts={layouts[id] || this.generateLayouts()}
+          layouts={this.generateLayouts()}
           width={size.width}
           rowHeight={this.calcRowHeight(size.height)}
           containerPadding={[gap, gap]}
           margin={[gap, gap]}
           isDraggable={edit}
-          isResizable={edit}
-          onLayoutChange={this.handleLayoutChange}
+          isResizable={false}
+          onLayoutChange={onLayoutChange}
           onDragStart={this.handleDragStart}
           onDragStop={this.handleDragStop}
         >
@@ -154,14 +158,4 @@ export class GridContainer extends PureComponent {
   }
 }
 
-const mapStateToProps = state => ({
-  layouts: state.grid.layouts
-});
-
-export const mapDispatchToProps = {
-  onLayoutChange: changeLayouts
-};
-
-export default connect(mapStateToProps, mapDispatchToProps)(
-  sizeMe({ monitorHeight: true })(GridContainer)
-);
+export default sizeMe({ monitorHeight: true })(GridContainer);

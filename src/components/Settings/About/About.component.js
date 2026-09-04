@@ -1,15 +1,30 @@
 import React from 'react';
 import PropTypes from 'prop-types';
 import { FormattedMessage } from 'react-intl';
-import Typography from 'material-ui/Typography';
-import Paper from 'material-ui/Paper';
+import Typography from '@material-ui/core/Typography';
+import Link from '@material-ui/core/Link';
+import Paper from '@material-ui/core/Paper';
 
 import messages from './About.messages';
 import FullScreenDialog, {
   FullScreenDialogContent
 } from '../../UI/FullScreenDialog';
-
+import CboardLogo from '../../WelcomeScreen/CboardLogo';
 import './About.css';
+import { isPackagedApp } from '../../../cordova-util';
+
+const itemData = [
+  {
+    img: (isPackagedApp() ? '.' : '') + '/images/sponsers/unicef.png',
+    title: 'UNICEF',
+    author: 'UNICEF'
+  },
+  {
+    img: (isPackagedApp() ? '.' : '') + '/images/sponsers/microsoft.png',
+    title: 'Microsoft',
+    author: 'Microsoft'
+  }
+];
 
 About.propTypes = {
   history: PropTypes.object.isRequired,
@@ -25,76 +40,73 @@ function About({ history, onClose }) {
     >
       <Paper>
         <FullScreenDialogContent>
+          <div className="logo">
+            <CboardLogo isViolet={true} />
+          </div>
+          <Typography variant="h6" gutterBottom={true}>
+            <FormattedMessage {...messages.copyright} />
+          </Typography>
           <Typography variant="body1">
             <FormattedMessage {...messages.intro} />
           </Typography>
-
-          <Typography variant="headline">
-            <FormattedMessage {...messages.contributors} />
+          <div className="title">
+            <Typography variant="h5">
+              <FormattedMessage {...messages.contribute} />
+            </Typography>
+          </div>
+          <Typography variant="body1" gutterBottom={true} component="div">
+            <React.Fragment>
+              <FormattedMessage {...messages.contributeText} />
+              <Link
+                href="https://github.com/cboard-org/cboard/"
+                target="_blank"
+              >
+                {' Cboard Github'}
+              </Link>
+            </React.Fragment>
           </Typography>
-          <Typography variant="body1" headlineMapping={{ body1: 'div' }}>
-            <ul>
-              <li>
-                <a href="https://twitter.com/amberleyjohanna">Amberley Romo</a>
-              </li>
-              <li>
-                <a href="https://twitter.com/_arthurdenner">Arthur Denner</a>
-              </li>
-              <li>
-                <a href="https://twitter.com/hwk73">Arijit Bhattacharya</a>
-              </li>
-              <li>
-                <a href="https://github.com/BrendanFDMoore">Brendan Moore</a>
-              </li>
-              <li>
-                <a href="https://twitter.com/jvuillermet">Jeremy Vuillermet</a>
-              </li>
-              <li>
-                <a href="https://twitter.com/jquintozamora">Jose Quinto</a>
-              </li>
-              <li>Martin Bedouret</li>
-              <li>
-                <a href="https://github.com/shayc">Shay Cojocaru</a>
-              </li>
-            </ul>
-          </Typography>
-          <Typography variant="headline">
-            <FormattedMessage {...messages.resources} />
-          </Typography>
-          <Typography variant="body1" headlineMapping={{ body1: 'div' }}>
-            <ul>
-              <li>
-                <a href="https://openassistive.org/awesome-assistivetech/">
-                  Awesome Assistivetech
-                </a>{' '}
-                - A curated list of{' '}
-                <span role="img" aria-label="cool">
-                  😎
-                </span>{' '}
-                awesome Assistive Technology frameworks and tools to help you
-                develop your AT tool/system.
-              </li>
-            </ul>
-          </Typography>
-          <Typography variant="headline">
+          <Typography variant="h5">
             <FormattedMessage {...messages.license} />
           </Typography>
-          <Typography variant="body1" headlineMapping={{ body1: 'div' }}>
+          <Typography variant="body1" component="div">
             <ul>
               <li>
                 Code -{' '}
-                <a href="https://github.com/shayc/cboard/blob/master/LICENSE">
+                <Link
+                  href="https://github.com/shayc/cboard/blob/master/LICENSE"
+                  target="_blank"
+                >
                   GPLv3
-                </a>
+                </Link>
               </li>
               <li>
                 Mulberry Symbols -{' '}
-                <a href="https://creativecommons.org/licenses/by-sa/2.0/uk/">
+                <Link
+                  href="https://creativecommons.org/licenses/by-sa/2.0/uk/"
+                  target="_blank"
+                >
                   CC BY-SA
-                </a>
+                </Link>
+              </li>
+              <li>
+                ARASAAC Symbols -{' '}
+                <Link href="https://arasaac.org/terms-of-use/" target="_blank">
+                  Creative Commons License BY-NC-SA
+                </Link>
               </li>
             </ul>
           </Typography>
+          <Typography variant="h5">
+            <FormattedMessage {...messages.thanks} />
+          </Typography>
+          <Typography variant="body1" component="div">
+            <FormattedMessage {...messages.thanksBody} />
+          </Typography>
+          <div className="imageContainer">
+            {itemData.map((item) => (
+              <img src={item.img} alt={item.title} className="imageItem" />
+            ))}
+          </div>
         </FullScreenDialogContent>
       </Paper>
     </FullScreenDialog>

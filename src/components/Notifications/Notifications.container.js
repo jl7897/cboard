@@ -15,6 +15,10 @@ class NotificationsContainer extends Component {
      */
     message: PropTypes.string.isRequired,
     /**
+     * The Kind of notification bar
+     */
+    kind: PropTypes.string,
+    /**
      * Shows notification bar
      */
     showNotification: PropTypes.func.isRequired,
@@ -65,14 +69,13 @@ class NotificationsContainer extends Component {
       return;
     }
     hideNotification();
+    this.showQueuedNotificationIfAny();
   };
 
   showQueuedNotificationIfAny = () => {
     if (this.queuedNotifications.length !== 0) {
-      console.log('before', this.queuedNotifications);
       this.props.showNotification(this.queuedNotifications[0]);
       this.queuedNotifications.splice(0, 1);
-      console.log('after', this.queuedNotifications);
     }
   };
 
@@ -80,6 +83,7 @@ class NotificationsContainer extends Component {
     const {
       open,
       message,
+      kind,
       showNotification,
       hideNotification,
       ...config
@@ -94,16 +98,17 @@ class NotificationsContainer extends Component {
         config={config}
         open={open}
         message={message}
+        kind={kind}
         handleNotificationDismissal={this.handleNotificationDismissal}
-        showQueuedNotificationIfAny={this.showQueuedNotificationIfAny}
       />
     );
   }
 }
 
-const mapStateToProps = ({ notification: { message, open } }) => ({
+const mapStateToProps = ({ notification: { message, open, kind } }) => ({
   message,
-  open
+  open,
+  kind
 });
 
 const mapDispatchToProps = {
@@ -111,6 +116,7 @@ const mapDispatchToProps = {
   hideNotification
 };
 
-export default connect(mapStateToProps, mapDispatchToProps)(
-  NotificationsContainer
-);
+export default connect(
+  mapStateToProps,
+  mapDispatchToProps
+)(NotificationsContainer);

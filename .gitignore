@@ -12,11 +12,17 @@
 # production
 /build
 
+# object code
+obj/
+
 # vscode
 .vscode/chrome
 
 # phpstorm/webstorm/idea
 .idea
+
+# netbeans
+nbproject/
 
 # misc
 .DS_Store
@@ -25,6 +31,24 @@
 .env.test.local
 .env.production.local
 
+# package manager logs
 npm-debug.log*
-yarn-debug.log*
-yarn-error.log*
+
+.env
+
+# visual studio
+*.njsproj
+*.sln
+/.vs
+
+# Playwright
+/log/
+/test-results/
+/playwright-report/
+/blob-report/
+/playwright/.cache/
+/tests/test-results/
+/tests/playwright-report/
+/tests/blob-report/
+/tests/playwright/.cache/
+/.playwright-mcp/

@@ -10,7 +10,7 @@
   height: 32px;
   padding: 0 16px;
   border-radius: 4px;
-  font-size: 14px;
+  font-size: 1em;
   font-weight: 500;
   font-family: 'Helvetica', 'Arial', sans-serif;
   border: 0;
@@ -23,9 +23,13 @@
   color: rgba(255, 255, 255, 0.26);
 }
 
+.react-autosuggest__clear {
+  margin-right: 1em;
+}
+
 .react-autosuggest__suggestions-container {
   position: absolute;
-  top: 56px;
+  top: 120px;
   left: 0;
   width: 100%;
   overflow: hidden;
@@ -37,14 +41,25 @@
   -webkit-overflow-scrolling: touch;
 }
 
+.colorSelectDropdown {
+  margin-right: 1em;
+  z-index: 1;
+}
+
 @media (min-width: 600px) {
   .react-autosuggest__suggestions-container {
-    top: 64px;
+    top: 128px;
+  }
+}
+
+@media (max-width: 500px) {
+  .react-autosuggest__suggestions-container {
+    top: 200px;
   }
 }
 
 .react-autosuggest__suggestions-container--open {
-  height: 200px;
+  height: fit-content;
 }
 
 .react-autosuggest__suggestions-list {

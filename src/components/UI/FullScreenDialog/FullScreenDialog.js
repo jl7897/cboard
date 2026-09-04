@@ -1,14 +1,14 @@
 import React from 'react';
 import PropTypes from 'prop-types';
 import { FormattedMessage } from 'react-intl';
-import { withStyles } from 'material-ui/styles';
-import AppBar from 'material-ui/AppBar';
-import Button from 'material-ui/Button';
-import Dialog from 'material-ui/Dialog';
-import Toolbar from 'material-ui/Toolbar';
-import Typography from 'material-ui/Typography';
-import Slide from 'material-ui/transitions/Slide';
-import Fade from 'material-ui/transitions/Fade';
+import { withStyles, useTheme } from '@material-ui/core/styles';
+import AppBar from '@material-ui/core/AppBar';
+import Button from '@material-ui/core/Button';
+import Dialog from '@material-ui/core/Dialog';
+import Toolbar from '@material-ui/core/Toolbar';
+import Typography from '@material-ui/core/Typography';
+import Slide from '@material-ui/core/Slide';
+import Fade from '@material-ui/core/Fade';
 
 import messages from '../../App/App.messages';
 import BackButton from '../BackButton';
@@ -17,6 +17,7 @@ import './FullScreenDialog.css';
 FullScreenDialog.propTypes = {
   disableSubmit: PropTypes.bool,
   open: PropTypes.bool,
+  fullWidth: PropTypes.bool,
   title: PropTypes.oneOfType([PropTypes.string, PropTypes.node]),
   onClose: PropTypes.func,
   onSubmit: PropTypes.func,
@@ -41,13 +42,22 @@ const styles = {
     overflow: 'hidden'
   },
   container: {
-    height: '100%',
     background: '#f1f1f1',
+    height: '100%',
+    overflowY: 'auto',
+    WebkitOverflowScrolling: 'touch'
+  },
+  containerDark: {
+    background: '#1111',
+    height: '100%',
     overflowY: 'auto',
     WebkitOverflowScrolling: 'touch'
   },
   content: {
     maxWidth: '680px',
+    margin: '0 auto'
+  },
+  contentFullWidth: {
     margin: '0 auto'
   }
 };
@@ -57,8 +67,12 @@ const transitions = {
   FADE: 'fade'
 };
 
-const TransitionUp = props => <Slide direction="up" {...props} />;
-const TransitionFade = props => <Fade {...props} />;
+const TransitionUp = React.forwardRef((props, ref) => (
+  <Slide direction="up" {...props} ref={ref} />
+));
+const TransitionFade = React.forwardRef((props, ref) => (
+  <Fade {...props} ref={ref} />
+));
 
 function getTransition(transition) {
   switch (transition) {
@@ -81,14 +95,18 @@ function FullScreenDialog(props) {
     disableSubmit,
     onClose,
     onSubmit,
-    transition = transitions.UP
+    transition = transitions.UP,
+    fullWidth
   } = props;
+
+  const theme = useTheme();
+  const dark = theme.palette.type === 'dark' ? true : false;
 
   return (
     <Dialog
       fullScreen
       open={open}
-      transition={getTransition(transition)}
+      TransitionComponent={getTransition(transition)}
       onClose={onClose}
     >
       <AppBar className={classes.appBar}>
@@ -98,7 +116,7 @@ function FullScreenDialog(props) {
           {title && (
             <div className="FullScreenDialog__title">
               <Typography
-                variant="title"
+                variant="h6"
                 color="inherit"
                 className={classes.title}
               >
@@ -111,6 +129,7 @@ function FullScreenDialog(props) {
           )}
           {onSubmit && (
             <Button
+              id="save-button"
               disabled={disableSubmit}
               color="inherit"
               style={{ color: disableSubmit && 'rgba(255, 255, 255, 0.26)' }}
@@ -124,8 +143,10 @@ function FullScreenDialog(props) {
           )}
         </Toolbar>
       </AppBar>
-      <div className={classes.container}>
-        <div className={classes.content}>{children}</div>
+      <div className={dark ? classes.containerDark : classes.container}>
+        <div className={fullWidth ? classes.contentFullWidth : classes.content}>
+          {children}
+        </div>
       </div>
     </Dialog>
   );
